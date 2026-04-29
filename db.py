@@ -1,67 +1,122 @@
-"""MongoDB Database Connection and Operations"""
+"""
+MongoDB Database Connection and Operations (Vercel-safe version)
+"""
+
 from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017')
-MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'spoms')
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "spoms")
 
-try:
-    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-    # Verify connection
-    client.admin.command('ping')
-    db = client[MONGODB_DB_NAME]
-    print("✓ Connected to MongoDB successfully")
-except ConnectionFailure:
-    print("✗ Failed to connect to MongoDB")
-    db = None
+client = None
+db = None
+_connected = False
 
 
+# -------------------------------
+# CONNECTION (SAFE / LAZY)
+# -------------------------------
+def connect_db():
+    global client, db, _connected
+
+    if _connected:
+        return db
+
+    if not MONGODB_URI:
+        print("✗ MongoDB URI not found in environment variables")
+        return None
+
+    try:
+        client = MongoClient(
+            MONGODB_URI,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000,
+        )
+
+        client.admin.command("ping")
+
+        db = client[MONGODB_DB_NAME]
+        _connected = True
+
+        print("✓ MongoDB Connected Successfully")
+        return db
+
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        print("✗ MongoDB Connection Failed:", e)
+        db = None
+        _connected = False
+        return None
+
+
+# -------------------------------
+# GET DB
+# -------------------------------
 def get_db():
-    """Get database instance"""
-    return db
+    return connect_db()
 
 
+# -------------------------------
+# GET COLLECTION
+# -------------------------------
 def get_collection(collection_name):
-    """Get a collection from the database"""
-    if db is None:
+    database = connect_db()
+
+    if database is None:
         raise ConnectionError("MongoDB connection failed")
-    return db[collection_name]
+
+    return database[collection_name]
 
 
+# -------------------------------
+# INIT DATABASE (SAFE)
+# -------------------------------
 def init_db():
-    """Initialize database collections and indexes"""
-    if db is None:
+    database = connect_db()
+
+    if database is None:
+        print("⚠ Skipping DB initialization (no connection)")
         return
-    
-    # Create collections if they don't exist
-    collections = ['users', 'suppliers', 'orders', 'payments', 'feedback', 'settings']
-    
-    for collection_name in collections:
-        if collection_name not in db.list_collection_names():
-            db.create_collection(collection_name)
-            print(f"✓ Created collection: {collection_name}")
-    
-    # Create indexes for better performance
-    db.users.create_index('username', unique=True, sparse=True)
-    db.suppliers.create_index('id', unique=True)
-    db.orders.create_index('po', unique=True)
-    db.payments.create_index('id', unique=True)
-    
-    # Initialize settings if empty
-    if db.settings.count_documents({}) == 0:
-        db.settings.insert_one({
-            'system_name': 'SPOMS',
-            'logo': 'images/logo.png',
-            'homepage_background': 'images/spoms.png'
+
+    collections = [
+        "users",
+        "suppliers",
+        "orders",
+        "payments",
+        "feedback",
+        "settings",
+    ]
+
+    # Create collections if missing
+    for name in collections:
+        if name not in database.list_collection_names():
+            database.create_collection(name)
+            print(f"✓ Created collection: {name}")
+
+    # Indexes
+    database.users.create_index("username", unique=True, sparse=True)
+    database.suppliers.create_index("id", unique=True)
+    database.orders.create_index("po", unique=True)
+    database.payments.create_index("id", unique=True)
+
+    # -------------------------------
+    # DEFAULT SETTINGS
+    # -------------------------------
+    if database.settings.count_documents({}) == 0:
+        database.settings.insert_one({
+            "system_name": "SPOMS",
+            "logo": "images/logo.png",
+            "homepage_background": "images/spoms.png"
         })
-        print("✓ Initialized default settings")
-    
-    # Initialize default users if empty
-    if db.users.count_documents({}) == 0:
+        print("✓ Default settings created")
+
+    # -------------------------------
+    # DEFAULT USERS (KEEP YOUR USERS)
+    # -------------------------------
+    if database.users.count_documents({}) == 0:
         default_users = [
             {
                 "user_id": "U001",
@@ -100,5 +155,10 @@ def init_db():
                 "status": "Active"
             }
         ]
-        db.users.insert_many(default_users)
-        print("✓ Initialized default users")
+
+        database.users.insert_many(default_users)
+        print("✓ Default users inserted")
+
+
+# Auto-connect when imported (safe lightweight check)
+connect_db()

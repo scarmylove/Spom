@@ -9,9 +9,9 @@
         "dest": "app.py"
     }],
     "env": {
-        "MONGODB_URI": "@mongodb_uri",
-        "MONGODB_DB_NAME": "@mongodb_db_name",
-        "FLASK_ENV": "@flask_env",
+        "MONGODB_URI": "mongodb+srv://dennis:Spoms12345@spoms.okvcnfc.mongodb.net/spoms?retryWrites=true&w=majority",
+        "MONGODB_DB_NAME": "spoms",
+        "FLASK_ENV": "production",
         "SECRET_KEY": "@secret_key"
     }
 }

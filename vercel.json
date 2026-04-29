@@ -1,17 +1,15 @@
 {
-    "version": 2,
-    "builds": [{
-        "src": "app.py",
-        "use": "@vercel/python"
-    }],
-    "routes": [{
-        "src": "/(.*)",
-        "dest": "app.py"
-    }],
-    "env": {
-        "MONGODB_URI": "@mongodb_uri",
-        "MONGODB_DB_NAME": "@mongodb_db_name",
-        "FLASK_ENV": "@flask_env",
-        "SECRET_KEY": "@secret_key"
+  "version": 2,
+  "builds": [
+    {
+      "src": "app.py",
+      "use": "@vercel/python"
     }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "app.py"
+    }
+  ]
 }

@@ -4,24 +4,18 @@ from werkzeug.utils import secure_filename
 import os
 from datetime import datetime, timedelta
 import hashlib
-import base64
 from db import init_db, get_collection
 from bson.objectid import ObjectId
+from cloud_storage import upload_profile_image, upload_logo_image, upload_background_image, allowed_file
 
 app = Flask(__name__)
 app.secret_key = 'spoms-secret-2026'
-
-os.makedirs('static/images', exist_ok=True)
 
 # Initialize MongoDB on app startup
 init_db()
 
 def hash_pwd(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest()
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif', 'svg'}
 
 
 def default_settings():
@@ -405,24 +399,38 @@ def api_user(uid):
 def settings():
     settings = load_settings()
     message = None
+    
     if request.method == 'POST':
         system_name = request.form.get('system_name', settings['system_name']).strip()
         settings['system_name'] = system_name or settings['system_name']
 
-        if 'logo' in request.files:
-            logo_file = request.files['logo']
-            if logo_file and allowed_file(logo_file.filename):
-                logo_data = base64.b64encode(logo_file.read()).decode('utf-8')
-                settings['logo'] = f'data:image/{logo_file.filename.rsplit(".", 1)[1].lower()};base64,{logo_data}'
+        # Upload logo to Cloudinary
+        if 'logo' in request.files and request.files['logo'].filename:
+            logo_result = upload_logo_image(request.files['logo'])
+            if logo_result['success']:
+                settings['logo'] = logo_result['url']
+                message = 'Logo uploaded successfully.'
+            else:
+                message = f'Logo upload failed: {logo_result.get("error", "Unknown error")}'
 
-        if 'background' in request.files:
-            bg_file = request.files['background']
-            if bg_file and allowed_file(bg_file.filename):
-                bg_data = base64.b64encode(bg_file.read()).decode('utf-8')
-                settings['homepage_background'] = f'data:image/{bg_file.filename.rsplit(".", 1)[1].lower()};base64,{bg_data}'
+        # Upload background to Cloudinary
+        if 'background' in request.files and request.files['background'].filename:
+            bg_result = upload_background_image(request.files['background'])
+            if bg_result['success']:
+                settings['homepage_background'] = bg_result['url']
+                if message:
+                    message += ' Background uploaded successfully.'
+                else:
+                    message = 'Background uploaded successfully.'
+            else:
+                if message:
+                    message += f' Background upload failed: {bg_result.get("error", "Unknown error")}'
+                else:
+                    message = f'Background upload failed: {bg_result.get("error", "Unknown error")}'
 
         save_settings(settings)
-        message = 'Settings saved successfully.'
+        if not message:
+            message = 'Settings saved successfully.'
 
     return render_template('settings.html', settings=settings, message=message)
 
@@ -453,11 +461,13 @@ def profile():
         if data.get('password'):
             update_data['password'] = hash_pwd(data['password'])
         
-        if 'profile_picture' in request.files:
-            pic_file = request.files['profile_picture']
-            if pic_file and allowed_file(pic_file.filename):
-                pic_data = base64.b64encode(pic_file.read()).decode('utf-8')
-                update_data['profile_picture'] = f'data:image/{pic_file.filename.rsplit(".", 1)[1].lower()};base64,{pic_data}'
+        # Upload profile picture to Cloudinary
+        if 'profile_picture' in request.files and request.files['profile_picture'].filename:
+            pic_result = upload_profile_image(request.files['profile_picture'], user['user_id'])
+            if pic_result['success']:
+                update_data['profile_picture'] = pic_result['url']
+            else:
+                message = f'Profile picture upload failed: {pic_result.get("error", "Unknown error")}'
         
         if update_data:
             users_col.update_one({'_id': user['_id']}, {'$set': update_data})

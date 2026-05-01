@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017')
-MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'spoms')
+MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'Spoms')
 
 try:
     client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)

@@ -24,7 +24,7 @@ class Config:
     
     # MongoDB configuration
     MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017')
-    MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'spoms')
+    MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'Spoms')
     
     # Production settings
     JSON_SORT_KEYS = False
